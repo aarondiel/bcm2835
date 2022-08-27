@@ -1,13 +1,23 @@
-CC := clang
-CFLAGS := $(shell cat compile_flags.txt)
-FILES_TO_COPY := src include makefile settings.env compile_flags.txt
-MAKEFLAGS := --no-print-directory
-
 include ./settings.env
 
-bcm2835: src/bcm2835.c include/bcm2835.h
+CC = clang
+SSH = ssh -o LogLevel=QUIET $(SSH_TARGET)
+CFLAGS = $(shell cat compile_flags.txt)
+FILES_TO_COPY = src include examples test makefile settings.env compile_flags.txt
+MAKEFLAGS = --no-print-directory
+
+build/bcm2835.o: src/bcm2835.c include/bcm2835.h
+	@[ -d "build" ] || mkdir "build"
 	@$(CC) \
-		src/bcm2835.c \
+		$< \
+		$(CFLAGS) \
+		-c \
+		-o $@
+
+bin/blink: examples/blink.c build/bcm2835.o
+	@[ -d "bin" ] || mkdir "bin"
+	@$(CC) \
+		$^ \
 		$(CFLAGS) \
 		-o $@
 
@@ -19,10 +29,13 @@ copy-remote:
 		$(SSH_TARGET):~/bcm2835 \
 		>/dev/null
 
-.PHONY: run-remote
-run-remote:
+.PHONY: run-remote-blink
+run-remote-blink:
 	@make copy-remote
-	@ssh \
-		-o LogLevel=QUIET \
-		$(SSH_TARGET) \
-		-t "cd bcm2835 && make && ./bcm2835"
+	@$(eval target := bin/$(@:run-remote-%=%))
+	@$(SSH) -t "cd bcm2835 && make $(target) && sudo ./$(target)"
+
+.PHONY: test-remote
+test-remote:
+	@make copy-remote
+	@$(SSH) -t "cd bcm2835/test && make bin/test && sudo bin/test"

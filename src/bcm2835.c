@@ -1,5 +1,14 @@
 #include "bcm2835.h"
 
+void bcm2835_delay(uint64_t millis) {
+	struct timespec sleep_timer = {
+		.tv_sec = millis / 1000,
+		.tv_nsec = (millis % 1000) * 1000000
+	};
+
+	nanosleep(&sleep_timer, NULL);
+}
+
 void bcm2835_to_little_endian(uint32_t *input) {
 	uint8_t *buffer = (uint8_t *)input;
 
@@ -54,7 +63,7 @@ bcm2835 *bcm2835_open() {
 		return NULL;
 	}
 
-	chip->gpio = (bcm2835_gpio_peripherals *)chip->peripherals + 0x80000;
+	chip->gpio = (bcm2835_gpio_peripherals *)(chip->peripherals + 0x80000);
 	// chip->pwm = bcm2835_peripherals + 0x83000;
 	// chip->clock  = bcm2835_peripherals + 0x40400;
 	// chip->pads = bcm2835_peripherals + 0x40000;
@@ -76,12 +85,61 @@ bcm2835 *bcm2835_open() {
 }
 
 void bcm2835_close(bcm2835 *chip) {
+	munmap(chip->peripherals, chip->peripheral_size);
 	free(chip);
 }
 
-int main(int argc, char **argv) {
-	bcm2835 *chip = bcm2835_open();
-	bcm2835_close(chip);
+bool bcm2835_gpio_select_function(
+	bcm2835_gpio_peripherals *gpio,
+	uint8_t pin,
+	bcm2835_gpio_function function
+) {
+	if (pin > 53)
+		return 1;
+
+	uint8_t bitshift = (pin % 10) * 3;
+	uint32_t bitmask = ~(0b111 << bitshift);
+	uint32_t current_value = gpio->function_select[pin / 10] & bitmask;
+	uint32_t payload = (function << bitshift) ^ current_value;
+
+	gpio->function_select[pin / 10] ^= payload;
 
 	return 0;
+}
+
+bool bcm2835_gpio_clear_line(
+	bcm2835_gpio_peripherals *gpio,
+	uint8_t pin
+) {
+	if (pin > 53)
+		return 1;
+
+	gpio->clear[pin / 32] |= 1 << (pin % 32);
+
+	return 0;
+}
+
+bool bcm2835_gpio_write_line(
+	bcm2835_gpio_peripherals *gpio,
+	uint8_t pin,
+	bool state
+) {
+	if (pin > 53)
+		return 1;
+
+	if (!state)
+		return bcm2835_gpio_clear_line(gpio, pin);
+
+	gpio->set[pin / 32] |= 1 << (pin % 32);
+
+	return 0;
+}
+
+bool bcm2835_gpio_read_line(bcm2835_gpio_peripherals *gpio, uint8_t pin) {
+	if (pin > 53)
+		return 1;
+
+	uint32_t bitmask = 1 << (pin % 32);
+
+	return gpio->level[pin / 32] & bitmask;
 }
