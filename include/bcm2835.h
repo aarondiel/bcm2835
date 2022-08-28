@@ -17,7 +17,7 @@ typedef struct {
 	uint32_t counter_lower;
 	uint32_t counter_higher;
 	uint32_t compare[4];
-} bcm2835_system_timer_peripherals;
+} bcm2835_timer_peripherals;
 
 typedef struct {
 	uint32_t function_select[6];
@@ -80,12 +80,13 @@ typedef struct {
 	uint32_t peripheral_size;
 	uint32_t *peripherals;
 	bcm2835_gpio_peripherals *gpio;
-	bcm2835_system_timer_peripherals *system_timer;
+	bcm2835_timer_peripherals *timer;
 } bcm2835;
 
 bcm2835 *bcm2835_open();
 void bcm2835_close(bcm2835 *chip);
 void bcm2835_delay(uint64_t millis);
+void bcm2835_delay_micro(bcm2835_timer_peripherals *timer, uint64_t micros);
 
 bool bcm2835_gpio_read_line(bcm2835_gpio_peripherals *gpio, uint8_t pin);
 bool bcm2835_gpio_event_status(bcm2835_gpio_peripherals *gpio, uint8_t pin);
@@ -108,6 +109,4 @@ bool bcm2835_gpio_event_detect(
 	bool enable
 );
 
-uint64_t bcm2835_system_timer_time(
-	bcm2835_system_timer_peripherals *system_timer
-);
+uint64_t bcm2835_timer_time(bcm2835_timer_peripherals *timer);

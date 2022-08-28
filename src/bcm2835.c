@@ -9,30 +9,20 @@ void bcm2835_delay(uint64_t millis) {
 	nanosleep(&sleep_timer, NULL);
 }
 
-// void bcm2835_delay_micro(uint64_t micros) {
-// 	struct timespec t1 = {
-// 		.tv_sec = 0,
-// 		.tv_nsec = 1000 * micros
-// 	};
-//
-// 	uint64_t start = bcm2835_st_read();
-//
-// 	/* Not allowed to access timer registers (result is not as precise)*/
-// 	if (start == 0) {
-// 		t1.tv_sec = 0;
-// 		t1.tv_nsec = 1000 * (long)(micros);
-// 		nanosleep(&t1, NULL);
-// 		return;
-// 	}
-//
-// 	if (micros > 450) {
-// 		t1.tv_sec = 0;
-// 		t1.tv_nsec = 1000 * (long)(micros - 200);
-// 		nanosleep(&t1, NULL);
-// 	}    
-//
-// 	bcm2835_st_delay(start, micros);
-// }
+void bcm2835_delay_micro(bcm2835_timer_peripherals *timer, uint64_t micros) {
+	if (timer == NULL) {
+		struct timespec sleep_timer = {
+			.tv_sec = 0,
+			.tv_nsec = 1000 * micros
+		};
+
+		nanosleep(&sleep_timer, NULL);
+		return;
+	}
+
+	uint64_t end = bcm2835_timer_time(timer) + micros;
+	while (bcm2835_timer_time(timer) < end);
+}
 
 void bcm2835_to_little_endian(uint32_t *input) {
 	uint8_t *buffer = (uint8_t *)input;
@@ -92,7 +82,7 @@ bcm2835 *bcm2835_open() {
 	// chip->pwm = bcm2835_peripherals + 0x83000;
 	// chip->clock  = bcm2835_peripherals + 0x40400;
 	// chip->pads = bcm2835_peripherals + 0x40000;
-	chip->system_timer = (bcm2835_system_timer_peripherals *)(chip->peripherals + 0xc00);
+	chip->timer = (bcm2835_timer_peripherals *)(chip->peripherals + 0xc00);
 	// chip->aux = bcm2835_peripherals + 0x85400;
 	// chip->smi = bcm2835_peripherals + 0x180000;
 
@@ -257,12 +247,12 @@ bool bcm2835_gpio_pull_up_down_clock(
 // 	return 0;
 // }
 
-uint64_t bcm2835_system_timer_time(
-	bcm2835_system_timer_peripherals *system_timer
+uint64_t bcm2835_timer_time(
+	bcm2835_timer_peripherals *timer
 ) {
-	uint64_t system_time = system_timer->counter_higher;
+	uint64_t system_time = timer->counter_higher;
 	system_time <<= 32;
-	system_time |= system_timer->counter_lower;
+	system_time |= timer->counter_lower;
 
 	return system_time;
 }
